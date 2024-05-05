@@ -1,0 +1,413 @@
+---
+title: "DataMining_final"
+output: html_document
+date: "2024-04-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+options(warn=-1)
+library(arules) #Provides the infrastructure for representing
+library(arulesViz) #Extends package 'arules' with various visualization.
+library(tidyverse) #The tidyverse is an opinionated collection of  R packages designed for data science.
+library(readxl) #Read Excel Files in R.
+library(knitr) #Dynamic Report generation in R
+library(ggplot2) #A system for 'declaratively' creating graphics,
+
+#library(plyr) #Tools for Splitting, Applying and Combining Data.
+library(magrittr) #Provides a mechanism for chaining commands with a new forward-pipe operator, %>%. 
+library(dplyr) #A fast, consistent tool for working with data frame like objects, both in memory and out of memory.
+library(tidyverse) #This package is designed to make it easy to install and load multiple 'tidyverse' packages in a single step.
+```
+
+
+```{r}
+df <- read.csv("C:/Users/aabra/Downloads/archive (4)/bread basket.csv")
+
+```
+
+
+```{r}
+print(head(df))
+```
+
+```{r}
+print(str(df))
+
+```
+
+```{r}
+summary(df)
+```
+
+
+
+```{r}
+#checking  for missing values
+colSums(is.na(df))
+
+
+```
+
+```{r}
+#checking for duplicates
+duplicates <- duplicated(df)
+num_duplicates <- sum(duplicates)
+print(paste("Number of duplicates:", num_duplicates))
+
+```
+
+```{r}
+#Handling the duplicates
+clean_df <- distinct(df)
+
+```
+
+```{r}
+# Counting the number of unique transactions and sold items
+cat("The total number of unique transactions is ", length(unique(clean_df$Transaction)), "\n")
+
+cat("The total number of sold items is ", length(unique(clean_df$Item)), "\n")
+```
+
+```{r}
+clean_df$date_time <- as.POSIXct(clean_df$date_time, format = "%d-%m-%Y %H:%M")
+head(clean_df)
+
+```
+
+
+
+```{r}
+library(lubridate)
+
+# Extracting date
+clean_df$date <- as.Date(clean_df$date_time)
+
+# Extracting hour
+clean_df$hour <- hour(clean_df$date_time)
+
+# Extracting month
+clean_df$month <- format(clean_df$date_time, "%Y-%m")
+
+# Extracting weekday
+clean_df$weekday <- format(clean_df$date_time, "%A")
+
+clean_df$date_time <- NULL
+
+head(clean_df)
+
+```
+
+```{r}
+# Converting item names to lowercase and removing spaces
+
+clean_df$Item <- tolower(clean_df$Item)
+clean_df$Item <- gsub(" ", "", clean_df$Item)
+
+head(clean_df)
+```
+
+```{r}
+colnames(clean_df)
+
+```
+
+```{r}
+top_items <- clean_df %>%
+  group_by(Item) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice(1:20)
+
+top_items <- top_items %>%
+  mutate(percentage = count / sum(count))
+
+# Displaying the top 20 best-selling items
+print(top_items)
+```
+```{r}
+
+sales_by_day_period <- clean_df %>%
+  group_by(period_day, Item) %>%
+  summarise(total_sales = n()) %>%
+  arrange(desc(total_sales))
+
+top_20_items <- sales_by_day_period %>%
+  group_by(Item) %>%
+  summarise(total_sales = sum(total_sales)) %>%
+  arrange(desc(total_sales)) %>%
+  slice(1:20) %>%
+  pull(Item)
+
+top_20_data <- sales_by_day_period %>%
+  filter(Item %in% top_20_items)
+
+ggplot(top_20_data, aes(x = period_day, fill = Item)) +
+  geom_bar(position = "stack") +
+  labs(title = "Sales by Day Period for Top 20 Items",
+       x = "Day Period",
+       y = "Total Sales") +
+  theme_minimal()
+
+```
+
+
+```{r}
+ggplot(clean_df, aes(x = period_day, y = Transaction, fill = period_day)) +
+  geom_boxplot() +
+  labs(title = "Box Plot of Transactions by Period of Day", x = "Period of Day", y = "Transaction") +
+  theme_minimal() +
+  guides(fill = FALSE)
+```
+
+
+```{r}
+
+
+bar_colors <- c("skyblue", "coral", "lightgreen", "salmon", "lightblue", 
+                "orange", "lightpink", "cyan", "plum", "peachpuff","skyblue", "coral", "lightgreen", "salmon", "lightblue", 
+                "orange", "lightpink", "cyan", "plum", "peachpuff")
+ggplot(top_items, aes(x = reorder(Item, -count), y = count)) +
+  geom_bar(stat = "identity", fill = bar_colors) + 
+  labs(title = "Top 20 Best Selling Items",
+       x = "Items",
+       y = "Count of Items") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+items_num <- clean_df %>%
+  group_by(Transaction) %>%
+  summarise(items_count = n()) %>%
+  ungroup()
+
+items_summary <- items_num %>%
+  count(items_count) %>%
+  rename(Transaction = n) %>%
+  mutate(percentage = Transaction / sum(Transaction))
+
+print(items_summary)
+
+```
+
+```{r}
+
+ggplot(items_num, aes(x = items_count)) +
+  geom_histogram(binwidth = 1, fill = "#440154FF", color = "white") + 
+  labs(title = "Number of Items per Transaction",
+       x = "Number of Items",
+       y = "Count of Transactions") +
+    scale_x_continuous(breaks = seq(0, max(items_num$items_count), by = 1)) +  
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+```
+
+
+
+```{r}
+qty_month <- clean_df %>%
+  group_by(month) %>%
+  summarise(Transaction_Count = n_distinct(Transaction))
+
+```
+
+```{r}
+ggplot(qty_month, aes(x = month, y = Transaction_Count)) +
+  geom_bar(stat = "identity", fill = "#440154FF") +  # Adjust fill color as desired
+  labs(title = "Quantity Sold by Month",
+       x = "Month",
+       y = "Count of Items") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(panel.grid.major = element_line(color = "gray", linetype = "dashed", size = 0.5))
+```
+
+```{r}
+
+wd_order <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+# Count the number of transactions by days of the week
+qty_wd <- clean_df %>%
+  group_by(weekday) %>%
+  summarise(Transaction_Count = n()) %>%
+  mutate(weekday = factor(weekday, levels = wd_order)) %>%
+  arrange(weekday)
+
+# Print the resulting dataframe
+print(qty_wd)
+```
+
+```{r}
+ggplot(qty_wd, aes(x = reorder(weekday, -Transaction_Count), y = Transaction_Count)) +
+  geom_bar(stat = "identity", fill = "plum") +  
+  labs(title = "Quantity Sold by Days of Week",
+       x = "Day of Week",
+       y = "Count of Items") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(panel.grid.major = element_line(color = "gray", linetype = "dashed", size = 0.5))
+
+```
+
+
+
+
+
+```{r}
+transactions <- arules::transactions(clean_df,
+                                     format = "long",
+                                     cols = c("Transaction", "Item"))
+```
+
+```{r}
+summary(transactions)
+
+```
+
+
+
+```{r}
+rules <- apriori(transactions,
+                 parameter = list(supp = 0.001, # minimum Support
+                                  conf = 0.30,  # minimum Confidence
+                                  minlen = 2))  # minimum length of items per rule
+```
+
+
+```{r}
+print(rules)
+
+```
+
+
+
+```{r}
+
+  
+summary(rules)
+
+```
+
+
+```{r}
+# Sorting rules by descending order, and inspect the top n few.
+rules <- sort(rules, by = 'support', decreasing = TRUE)
+inspect(rules)
+
+```
+
+```{r}
+rules_df <- as(inspect(rules), "data.frame")
+
+rules_df
+```
+
+```{r}
+summary(rules_df)
+```
+
+
+
+```{r}
+cbind(labels = labels(rules), quality(rules)[c(1:2,4)]) 
+
+```
+
+
+
+
+```{r}
+
+rules <-
+  rules[quality(rules)$confidence > 0.5 &
+          quality(rules)$lift > 1.1] %>% 
+  sort(by = 'confidence', decreasing = TRUE)
+
+topRules <- rules[order(-quality(rules)$support)][1:min(length(rules), 20)]
+
+inspect(topRules)
+
+```
+
+
+
+```{r}
+plot(topRules, jitter=0)
+
+
+```
+
+```{r}
+plot(topRules, method = "grouped matrix")
+
+```
+
+```{r}
+plot(topRules, method = "graph")
+
+```
+
+
+
+```{r}
+#install.packages("TraMineR")
+#install.packages("TraMineRextras")
+library(TraMineR)
+library(TraMineRextras)
+```
+
+
+
+```{r}
+seq_data <- seqdef(df[, c("Transaction", "Item", "period_day")])
+
+```
+
+```{r}
+summary(seq_data)
+
+# Frequency table of the most common sequences
+seqtab(seq_data)
+```
+
+
+
+
+```{r}
+
+# With idxs=0, we get all distinct sequences in the data set sorted in decreasing order of their frequency
+stab <- seqtab(seq_data, idxs=0)
+head(stab)
+tail(stab)
+```
+
+
+
+```{r}
+model_data <- clean_df %>%
+  mutate(Item = as.factor(Item),
+         period_day = as.factor(period_day),
+         weekday_weekend = as.factor(weekday_weekend),
+         month = as.factor(month),
+         hour = as.factor(hour))
+
+lm_model <- lm(Transaction ~ ., data = model_data)
+
+summary(lm_model)
+```
+
+
+
+
+
+
+
+
